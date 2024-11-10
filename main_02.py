@@ -1,4 +1,6 @@
 from copy import deepcopy
+from collections import deque
+from queue import LifoQueue
 
 class LogicMagnetsGame:
     def __init__(self, board_size, num_gray, num_purple, num_red, board_customized):
@@ -10,6 +12,7 @@ class LogicMagnetsGame:
         self.target_positions = self.initialize_board(board_customized)
         self.states = []
         self.states.append(board_customized)
+        self.final_solution = []
 
     def initialize_board(self, board_customized):
         target_positions = [] #set()
@@ -145,6 +148,37 @@ class LogicMagnetsGame:
     def compare_two_states(self):
         pass
 
+    def generate_possible_moves(self):
+
+        curr_positions = []
+        able_positions = []
+        new_states = []
+
+        for row_index, row in enumerate(self.board):
+            for col_index, element in enumerate(row):
+                if element in ['R', 'P']:
+                    curr_positions.append((row_index, col_index))
+        for curr_position in curr_positions:
+            for new_x, row1 in enumerate(self.board):
+                for new_y, element1 in enumerate(row1):
+                    if self.can_move_to(curr_position, new_x, new_y):
+                        # able_positions.append(((curr_position[0], curr_position[1]), (new_x, new_y)))
+                        able_positions.append((curr_position, (new_x, new_y)))
+
+        # print(able_positions)
+
+        return able_positions
+
+    def apply_move(self, move):
+        #(current_x, current_y) = curr[0]
+        #(new_x, new_y) = move
+        (current_x, current_y), (new_x, new_y) = move
+
+        new_game_state = deepcopy(self)
+        new_game_state.move_piece(current_x, current_y, new_x, new_y)
+        return new_game_state
+
+   
 
 class LogicMagnetsUI:
     def __init__(self, board=None):
@@ -207,32 +241,103 @@ class LogicMagnetsUI:
             print(row_to_print)
             row_to_print = []
 
-    def play(self, board_customized):
-        self.initialize_game(board_customized)
-        while True:
-            if not self.game.check_final_solution():
-                self.display_board()
-                current_x, current_y, new_x, new_y = self.get_user_move()
-                if not self.game.move_piece(current_x, current_y, new_x, new_y):
-                    print("Invalid move. Please try again :(")
-            else:
-                self.display_board()
-                break
-                
-        print("Congratulations! You have solved the game :)")
-        for state in self.game.states:
-            print(state)
+    def play(self, board_customized, Automatic = True):
+        if Automatic:
+            self.initialize_game(board_customized)
+            solutions = self.bfs_solve()
+            game_copy = deepcopy(self.game)
+            for index, solution_path in enumerate(solutions):
+                self.game = game_copy
+                if solution_path:
+                    # print(f"Solution {index+1}!")
+                    for step, move in enumerate(solution_path, 1):
+                        print(f"Step {step}: Move piece from {move[0]} to {move[1]}")
+                        self.game = self.game.apply_move(move)
+                        self.display_board()#.game.board)
+                    print("Congratulations! You have solved the game :)")
+                else:
+                    print("No solution found")
 
-    def get_user_move(self):
-        try:
-            current_x = int(input("Enter current X position of desired piece to move: "))
-            current_y = int(input("Enter current Y position of desired piece to move: "))
-            new_x = int(input("Enter new X position to move the piece to it: "))
-            new_y = int(input("Enter new Y position to move the piece to it: "))
-            return current_x, current_y, new_x, new_y
-        except ValueError:
-            print("Error! Please enter numbers only :(")
-            return self.get_user_move()
+        else:    
+                self.initialize_game(board_customized)
+                while True:
+                    if not self.game.check_final_solution():
+                        self.display_board()
+                        
+                        current_x, current_y, new_x, new_y = self.get_user_move()
+                        if not self.game.move_piece(current_x, current_y, new_x, new_y):
+                            print("Invalid move. Please try again :(")
+                    else:
+                        self.display_board()
+                        break
+                # self.solve_bfs(board_customized) 
+                # print(self.game.final_solution)
+                print("Congratulations! You have solved the game :)")
+            # for state in self.game.states:
+            #     print(state)
+
+        def get_user_move(self):
+            try:
+                current_x = int(input("Enter current X position of desired piece to move: "))
+                current_y = int(input("Enter current Y position of desired piece to move: "))
+                new_x = int(input("Enter new X position to move the piece to it: "))
+                new_y = int(input("Enter new Y position to move the piece to it: "))
+                return current_x, current_y, new_x, new_y
+            except ValueError:
+                print("Error! Please enter numbers only :(")
+                return self.get_user_move()
+
+    def is_state_in_visited(self, state, visited):
+        for visited_state in visited:
+            if visited_state.board == state.board:
+                return True
+        return False
+    def bfs_solve(self):
+        initial_game = self.game
+        queue = deque([(initial_game, [])])
+        visited = []
+        solutions = []
+        while queue:
+            current_game, path = queue.popleft()
+            # print(path)
+            # print(current_game.board)
+
+            if current_game.check_final_solution():
+                #return path
+                solutions.append(path)
+            #curr, moves = current_game.generate_possible_moves()
+            able_positions = current_game.generate_possible_moves()
+            for move in able_positions:
+                new_game_state = current_game.apply_move(move)
+                if not self.is_state_in_visited(new_game_state, visited) :
+                    visited.append(new_game_state)
+                    queue.append((new_game_state, path + [move]))
+
+        return solutions 
+    
+
+    def dfs_solve(self):
+        initial_game = self.game
+        stack = [(initial_game, [])]
+        visited = []
+        solutions = []
+        while stack:
+            current_game, path = stack.pop()
+            # print(path)
+            # print(current_game.board)
+
+            if current_game.check_final_solution():
+                #return path
+                solutions.append(path)
+            #curr, moves = current_game.generate_possible_moves()
+            able_positions = current_game.generate_possible_moves()
+            for move in able_positions:
+                new_game_state = current_game.apply_move(move)
+                if not self.is_state_in_visited(new_game_state, visited) :
+                    visited.append(new_game_state)
+                    stack.append((new_game_state, path + [move]))
+
+        return solutions        
 
 
 if __name__ == "__main__":
@@ -410,19 +515,19 @@ if __name__ == "__main__":
         ['PP', 'W', 'W', 'G', ' ']
     ]
     level_26 = [
-        [' ', 'R'],
-        [' ', 'W']
+        ['R', ' '],
+        ['W', 'W']
     ]
 
-
+    Automatic = True
     
-    board_customized = level_26
+    board_customized = level_3
     # [
     #     [' ', ' ', ' ', 'G'],
     #     ['W', ' ', 'W', ' '],
     #     ['G', 'W', 'W', ' '],
     #     ['G', ' ', ' ', 'R']
     # ]
-    ui.play(board_customized)
+    ui.play(board_customized, Automatic)
 
 
